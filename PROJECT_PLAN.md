@@ -240,6 +240,8 @@ Output conventions (to decide during implementation):
 
 ## Implementation Phases
 
+Detailed checklists and per-phase CLI/schema scope: [docs/plan/](./docs/plan/).
+
 ### Phase 1 — Storage and board lifecycle
 
 - Resolve `.akb/` path from cwd.
