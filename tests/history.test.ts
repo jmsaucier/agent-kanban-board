@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   appendBoardEvent,
+  appendHistoryEvent,
   recordBoardCreated,
+  recordItemCreated,
+  recordItemDeleted,
+  recordItemMoved,
+  recordItemUpdated,
 } from "../src/history/index.js";
 import { createTempDir, removeTempDir } from "./helpers/temp-dir.js";
 
@@ -55,5 +60,78 @@ describe("history", () => {
     expect(lines).toHaveLength(2);
     expect(JSON.parse(lines[0]!).boardId).toBe("a");
     expect(JSON.parse(lines[1]!).boardId).toBe("b");
+  });
+
+  it("recordItemCreated writes item.created line", () => {
+    const at = "2026-05-21T12:00:00.000Z";
+    recordItemCreated(boardDir, "my-board", "my-board-k3m9x", at);
+
+    const line = readFileSync(join(boardDir, "history.jsonl"), "utf8").trim();
+    expect(JSON.parse(line)).toEqual({
+      at,
+      type: "item.created",
+      boardId: "my-board",
+      itemId: "my-board-k3m9x",
+    });
+  });
+
+  it("recordItemUpdated writes item.updated line", () => {
+    const at = "2026-05-21T12:01:00.000Z";
+    recordItemUpdated(boardDir, "my-board", "my-board-k3m9x", at);
+
+    const line = readFileSync(join(boardDir, "history.jsonl"), "utf8").trim();
+    expect(JSON.parse(line).type).toBe("item.updated");
+  });
+
+  it("recordItemMoved writes item.moved with from and to", () => {
+    const at = "2026-05-21T12:02:00.000Z";
+    recordItemMoved(
+      boardDir,
+      "my-board",
+      "my-board-k3m9x",
+      "To Do",
+      "In Progress",
+      at,
+    );
+
+    const line = readFileSync(join(boardDir, "history.jsonl"), "utf8").trim();
+    expect(JSON.parse(line)).toEqual({
+      at,
+      type: "item.moved",
+      boardId: "my-board",
+      itemId: "my-board-k3m9x",
+      from: "To Do",
+      to: "In Progress",
+    });
+  });
+
+  it("recordItemDeleted writes item.deleted line", () => {
+    const at = "2026-05-21T12:03:00.000Z";
+    recordItemDeleted(boardDir, "my-board", "my-board-k3m9x", at);
+
+    const line = readFileSync(join(boardDir, "history.jsonl"), "utf8").trim();
+    expect(JSON.parse(line).type).toBe("item.deleted");
+  });
+
+  it("appendHistoryEvent appends multiple item events", () => {
+    appendHistoryEvent(boardDir, {
+      at: "2026-05-21T12:00:00.000Z",
+      type: "item.created",
+      boardId: "b",
+      itemId: "b-aaaaa",
+    });
+    appendHistoryEvent(boardDir, {
+      at: "2026-05-21T12:01:00.000Z",
+      type: "item.updated",
+      boardId: "b",
+      itemId: "b-aaaaa",
+    });
+
+    const lines = readFileSync(join(boardDir, "history.jsonl"), "utf8")
+      .trim()
+      .split("\n");
+    expect(lines).toHaveLength(2);
+    expect(JSON.parse(lines[0]!).type).toBe("item.created");
+    expect(JSON.parse(lines[1]!).type).toBe("item.updated");
   });
 });

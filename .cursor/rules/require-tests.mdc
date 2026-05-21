@@ -1,0 +1,39 @@
+---
+description: Require tests for new or changed production code
+alwaysApply: true
+---
+
+# Tests required for code changes
+
+When you add or modify production code under `src/`, you must add or update tests in the same change. Do not ship feature or behavior changes without test coverage.
+
+## What to test
+
+- **New module** (`src/<name>/index.ts`): add `tests/<name>.test.ts` exercising the public API (interface-level tests, not internal helpers).
+- **Changed behavior**: extend the existing test file for that module; add cases that would fail without your change.
+- **CLI wiring** (`src/cli.ts`): prefer testing through the module API; add CLI-focused tests only when Commander parsing or stdout is the behavior under test.
+
+## Conventions (this repo)
+
+- Runner: Vitest (`npm test`).
+- Layout: `tests/<module>.test.ts` mirrors `src/<module>/`.
+- Isolated filesystem: use `tests/helpers/temp-dir.ts` with `createTempDir` / `removeTempDir` and `initWorkspace({ cwd })` for `.akb/` state.
+- History and disk: assert file contents and `history.jsonl` lines where behavior is auditable.
+
+## Examples
+
+```typescript
+// ✅ GOOD — new src/item/index.ts → tests/item.test.ts
+const item = addItem("demo", "Task", {}, cwd);
+expect(item.id).toMatch(/^demo-[a-z0-9]{5,6}$/);
+```
+
+```typescript
+// ❌ BAD — implementation only, no test update
+// Added moveItem() but no tests/item.test.ts case for item.moved
+```
+
+## Before finishing
+
+1. Run `npm test` and fix failures.
+2. If you only refactored with no behavior change, say so explicitly; still run tests to confirm nothing regressed.

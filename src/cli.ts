@@ -9,6 +9,17 @@ import {
   getBoard,
   listBoards,
 } from "./board/index.js";
+import {
+  addItem,
+  formatItemList,
+  formatItemShow,
+  getItem,
+  ItemError,
+  listItems,
+  moveItem,
+  removeItem,
+  updateItem,
+} from "./item/index.js";
 import { initWorkspace } from "./workspace/index.js";
 
 const packageJson = JSON.parse(
@@ -91,6 +102,141 @@ export function runCli(argv: string[]): void {
       try {
         const board = getBoard(id);
         console.log(formatBoardShow(board));
+      } catch (err) {
+        handleCommandError(err);
+      }
+    });
+
+  const item = program.command("item").description("Manage kanban items");
+
+  item
+    .command("add")
+    .description("Create a new item")
+    .argument("<board>", "Board id")
+    .argument("<title>", "Item title")
+    .option("--status <name>", "Initial column status (default: first board column)")
+    .action((boardId: string, title: string, options: { status?: string }) => {
+      try {
+        const created = addItem(boardId, title, {
+          status: options.status,
+        });
+        console.log(`Item created: ${created.id}`);
+        console.log(`Status: ${created.status}`);
+      } catch (err) {
+        handleCommandError(err);
+      }
+    });
+
+  item
+    .command("list")
+    .description("List items on a board")
+    .argument("<board>", "Board id")
+    .option("--status <name>", "Filter by status")
+    .action((boardId: string, options: { status?: string }) => {
+      try {
+        const items = listItems(boardId, { status: options.status });
+        console.log(formatItemList(items));
+      } catch (err) {
+        handleCommandError(err);
+      }
+    });
+
+  item
+    .command("show")
+    .description("Show one item")
+    .argument("<board>", "Board id")
+    .argument("<item>", "Item id")
+    .action((boardId: string, itemId: string) => {
+      try {
+        const itemConfig = getItem(boardId, itemId);
+        console.log(formatItemShow(itemConfig));
+      } catch (err) {
+        handleCommandError(err);
+      }
+    });
+
+  item
+    .command("move")
+    .description("Move item to a column status")
+    .argument("<board>", "Board id")
+    .argument("<item>", "Item id")
+    .argument("<status>", "Target status")
+    .action((boardId: string, itemId: string, status: string) => {
+      try {
+        const moved = moveItem(boardId, itemId, status);
+        console.log(`Item moved: ${moved.id}`);
+        console.log(`Status: ${moved.status}`);
+      } catch (err) {
+        handleCommandError(err);
+      }
+    });
+
+  item
+    .command("update")
+    .description("Update item title, description, or metadata")
+    .argument("<board>", "Board id")
+    .argument("<item>", "Item id")
+    .option("--title <value>", "New title")
+    .option("--description <value>", "New description")
+    .option("--metadata <json>", "Metadata object as JSON")
+    .action(
+      (
+        boardId: string,
+        itemId: string,
+        options: {
+          title?: string;
+          description?: string;
+          metadata?: string;
+        },
+      ) => {
+        try {
+          if (
+            options.title === undefined &&
+            options.description === undefined &&
+            options.metadata === undefined
+          ) {
+            throw new ItemError(
+              "Provide at least one of --title, --description, or --metadata.",
+            );
+          }
+
+          let metadata: Record<string, unknown> | undefined;
+          if (options.metadata !== undefined) {
+            try {
+              metadata = JSON.parse(options.metadata) as Record<string, unknown>;
+            } catch {
+              throw new ItemError("--metadata must be valid JSON.");
+            }
+            if (
+              metadata === null ||
+              typeof metadata !== "object" ||
+              Array.isArray(metadata)
+            ) {
+              throw new ItemError("--metadata must be a JSON object.");
+            }
+          }
+
+          const updated = updateItem(boardId, itemId, {
+            title: options.title,
+            description: options.description,
+            metadata,
+          });
+          console.log(`Item updated: ${updated.id}`);
+        } catch (err) {
+          handleCommandError(err);
+        }
+      },
+    );
+
+  item
+    .command("remove")
+    .description("Delete an item")
+    .argument("<board>", "Board id")
+    .argument("<item>", "Item id")
+    .action((boardId: string, itemId: string) => {
+      try {
+        removeItem(boardId, itemId);
+        console.log(`Item removed: ${itemId}`);
       } catch (err) {
         handleCommandError(err);
       }
