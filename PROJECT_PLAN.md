@@ -37,10 +37,10 @@ Run **`akb init`** once per working directory before creating boards or items. I
 ### Board directory (`<board-id>`)
 
 - **`board.json`** — board name, id, created/updated timestamps, and ordered list of **statuses** (columns).
-- **`items/`** — one JSON file per item; filename is the item id (e.g. `my-sprint-f47ac10b-58cc-4372-a567-0e02b2c3d479.json`).
+- **`items/`** — one JSON file per item; filename is the item id (e.g. `my-sprint-k3m9x.json`).
 - **`history.jsonl`** — one JSON object per line; records board- and item-level events (creation, status changes, updates, deletion).
 
-Board ids should be filesystem-safe (slug or uuid). The CLI resolves boards by id or by a unique display name if we support aliases later.
+Board ids should be filesystem-safe slugs (user-provided on `board create`). The CLI resolves boards by id or by a unique display name if we support aliases later.
 
 ### Default statuses
 
@@ -86,6 +86,19 @@ akb board create my-sprint
 
 ## Data Schemas (planned)
 
+### Short ids (suffix)
+
+Auto-generated suffixes are **not** RFC UUIDs. Each suffix is **5–6 random lowercase alphanumeric characters** (`a`–`z`, `0`–`9`) so ids stay short and easy for humans to read and type (e.g. `my-sprint-k3m9x`, `my-sprint-k3m9x-a7f2p`).
+
+| Rule | Detail |
+| ---- | ------ |
+| Length | Randomly 5 or 6 characters per generated suffix |
+| Charset | `abcdefghijklmnopqrstuvwxyz0123456789` |
+| Uniqueness | On collision within scope, generate a new suffix and retry (items: unique per board; sub-tasks: unique per parent item) |
+| Composition | Item: `{board-id}-{suffix}` · Sub-task: `{item-id}-{suffix}` |
+
+Full ids use hyphen separators; the suffix is only the trailing segment(s), not a nested UUID string.
+
 ### `config.json` (workspace root)
 
 | Field           | Type   | Description                           |
@@ -107,7 +120,7 @@ akb board create my-sprint
 
 | Field         | Type   | Description                                                 |
 | ------------- | ------ | ----------------------------------------------------------- |
-| `id`          | string | Auto-generated: `{board-id}-{uuid}` (matches filename stem) |
+| `id`          | string | Auto-generated: `{board-id}-{shortId}` (matches filename stem) |
 | `title`       | string | Short summary                                               |
 | `description` | string | Optional longer text                                        |
 | `status`      | string | Must be one of `board.statuses`                             |
@@ -122,7 +135,7 @@ Sub-tasks are stored **inside** the parent item’s JSON file (not separate file
 
 | Field         | Type   | Description                                                                |
 | ------------- | ------ | -------------------------------------------------------------------------- |
-| `id`          | string | Auto-generated: `{item-id}-{uuid}` (item id already includes board prefix) |
+| `id`          | string | Auto-generated: `{item-id}-{shortId}` (item id already includes board prefix) |
 | `title`       | string | Short description of the work piece                                        |
 | `description` | string | Optional detail for the worker agent                                       |
 | `status`      | string | Sub-task lifecycle: `pending`, `in_progress`, `done`, `cancelled`          |
@@ -143,16 +156,16 @@ Sub-task statuses are **independent** of board columns. Board `status` on the pa
 
 The CLI exposes sub-task progress on `item show` (e.g. `2/5 done`).
 
-Example fragment inside `items/my-sprint-f47ac10b-58cc-4372-a567-0e02b2c3d479.json`:
+Example fragment inside `items/my-sprint-k3m9x.json`:
 
 ```json
 {
-  "id": "my-sprint-f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "id": "my-sprint-k3m9x",
   "title": "Implement authentication",
   "status": "In Progress",
   "subtasks": [
     {
-      "id": "my-sprint-f47ac10b-58cc-4372-a567-0e02b2c3d479-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "id": "my-sprint-k3m9x-a7f2p",
       "title": "Add login API route",
       "status": "done",
       "assignee": "agent-backend",
@@ -160,7 +173,7 @@ Example fragment inside `items/my-sprint-f47ac10b-58cc-4372-a567-0e02b2c3d479.js
       "updatedAt": "2026-05-21T11:30:00.000Z"
     },
     {
-      "id": "my-sprint-f47ac10b-58cc-4372-a567-0e02b2c3d479-b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "id": "my-sprint-k3m9x-x9k2m",
       "title": "Add session middleware",
       "status": "in_progress",
       "assignee": "agent-backend",
@@ -190,9 +203,9 @@ Each line is a single JSON object. Minimum event types to support:
 Example lines:
 
 ```json
-{"at":"2026-05-21T12:00:00.000Z","type":"item.moved","boardId":"my-sprint","itemId":"item-1","from":"To Do","to":"In Progress"}
-{"at":"2026-05-21T12:05:00.000Z","type":"subtask.created","boardId":"my-sprint","itemId":"item-1","subtaskId":"st-1","title":"Add login API route"}
-{"at":"2026-05-21T13:00:00.000Z","type":"subtask.moved","boardId":"my-sprint","itemId":"item-1","subtaskId":"st-1","from":"in_progress","to":"done"}
+{"at":"2026-05-21T12:00:00.000Z","type":"item.moved","boardId":"my-sprint","itemId":"my-sprint-k3m9x","from":"To Do","to":"In Progress"}
+{"at":"2026-05-21T12:05:00.000Z","type":"subtask.created","boardId":"my-sprint","itemId":"my-sprint-k3m9x","subtaskId":"my-sprint-k3m9x-a7f2p","title":"Add login API route"}
+{"at":"2026-05-21T13:00:00.000Z","type":"subtask.moved","boardId":"my-sprint","itemId":"my-sprint-k3m9x","subtaskId":"my-sprint-k3m9x-a7f2p","from":"in_progress","to":"done"}
 ```
 
 Append-only: never rewrite `history.jsonl`; agents can tail or parse it for context.
@@ -239,7 +252,7 @@ Output conventions (to decide during implementation):
 ### Phase 2 — Items
 
 - CRUD for items under `items/`.
-- Auto-generate item ids as `{board-id}-{uuid}`.
+- Auto-generate item ids as `{board-id}-{shortId}` (5–6 char alphanumeric suffix; retry on collision).
 - `item add` with optional `--status` (default `statuses[0]`; error if status not on board).
 - Enforce status ∈ `board.statuses`.
 - Append `item.*` events to `history.jsonl`.
@@ -247,7 +260,7 @@ Output conventions (to decide during implementation):
 ### Phase 2b — Sub-tasks
 
 - Embed `subtasks` array on item JSON; validate sub-task `status` enum.
-- Auto-generate sub-task ids as `{item-id}-{uuid}`.
+- Auto-generate sub-task ids as `{item-id}-{shortId}` (5–6 char suffix; retry on collision within item).
 - `item subtask` CRUD and `done` shortcut; optional filters on list.
 - When all sub-tasks are `done` or `cancelled`, auto-move parent to `Review` (else `Done`).
 - Append `subtask.*` events to `history.jsonl` (include `subtaskId` on every line).
@@ -282,8 +295,9 @@ Output conventions (to decide during implementation):
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `.akb/` in git                 | Opt-in via `akb init --gitignore` (appends `.akb/` to the project `.gitignore`). Otherwise teams may commit `.akb/` as shared state.             |
 | Initial item status            | Default `board.statuses[0]`; override with `item add --status`. Invalid status → error.                                                          |
-| Item ids                       | Auto-generated UUID prefixed with board id: `{board-id}-{uuid}`.                                                                                 |
-| Sub-task ids                   | Auto-generated UUID prefixed with parent item id: `{item-id}-{uuid}` (equivalent to `board-id` + `item-id` + `subtask-id` in the naming scheme). |
+| Item ids                       | `{board-id}-{shortId}` — suffix is 5–6 random lowercase alphanumeric characters.                                                                   |
+| Sub-task ids                   | `{item-id}-{shortId}` — same suffix rules; unique among sub-tasks on that item.                                                                    |
+| Short id format                | Human-readable, easy to copy in chat/CLI (e.g. `k3m9x`, `a7f2p`), not a full UUID.                                                                |
 | Parent when sub-tasks complete | Yes — auto-move parent to `Review` if that status exists on the board, otherwise `Done`, when every sub-task is `done` or `cancelled`.           |
 
 ---
