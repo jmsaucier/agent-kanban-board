@@ -4,7 +4,7 @@
   "description": "CLI for agent kanban board",
   "type": "module",
   "bin": {
-    "agent-kanban": "./dist/index.js"
+    "akb": "./dist/index.js"
   },
   "files": [
     "dist"
